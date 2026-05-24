@@ -10,6 +10,6 @@ export default defineConfig({
 
   vite: {
     plugins: [tailwindcss()],
-    cacheDir: '/tmp/vite-cache'
+    cacheDir: '/tmp/vite-cache-build'
   }
 });
