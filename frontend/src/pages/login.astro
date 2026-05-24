@@ -87,12 +87,14 @@ import Layout from '../layouts/Layout.astro';
     passkeyBtn.textContent = 'Waiting for passkey…'
 
     try {
-      const { error } = await (supabase.auth as any).signInWithPasskey({
-        email: (document.getElementById('email') as HTMLInputElement).value.trim() || undefined
-      })
+      // Step 1: get challenge from Supabase
+      const { data: startData, error: startError } = await (supabase.auth as any).passkey.startAuthentication()
+      if (startError) { showError(startError.message); return }
 
-      if (error) {
-        showError(error.message)
+      // Step 2: verify the passkey credential with Supabase
+      const { error: verifyError } = await (supabase.auth as any).passkey.verifyAuthentication(startData)
+      if (verifyError) {
+        showError(verifyError.message)
       } else {
         window.location.href = '/'
       }
