@@ -1,15 +1,19 @@
 import { defineConfig } from '@playwright/test';
 
+const baseUrl = process.env.BASE_URL || 'http://localhost:4321';
+const apiBase = process.env.BASE_URL || 'http://localhost:8080';
+
 export default defineConfig({
 	testDir: './e2e',
 	timeout: 30000,
 	retries: 1,
 	use: {
-		baseURL: 'http://localhost:4321',
+		baseURL: baseUrl,
 		screenshot: 'only-on-failure',
 		trace: 'retain-on-failure',
+		extraHTTPHeaders: process.env.BASE_URL ? {} : undefined,
 	},
-	webServer: [
+	webServer: process.env.BASE_URL ? undefined : [
 		{
 			command: 'cd ../backend && DATABASE_URL=$DATABASE_URL go run ./cmd/server',
 			port: 8080,

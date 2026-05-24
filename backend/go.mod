@@ -1,4 +1,4 @@
-module github.com/v1truv1us/record-keeper/backend
+module github.com/v1truv1us/cratekeeper/backend
 
 go 1.26.3
 

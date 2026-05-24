@@ -11,7 +11,10 @@ const { title } = Astro.props;
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title} | CrateKeeper</title>
     <script is:inline>
-      window.__API_BASE__ = window.__API_BASE__ || (location.protocol + '//' + location.hostname + ':8080');
+      // Production: API is same origin at /api/* (Go serves both).
+      // Dev: API runs on port 8080, frontend on 4321.
+      window.__API_BASE__ = window.__API_BASE__ ||
+        (location.port ? location.protocol + '//' + location.hostname + ':8080' : '');
     </script>
   </head>
   <body class="bg-cream text-espresso min-h-screen flex flex-col">
@@ -76,5 +79,23 @@ const { title } = Astro.props;
       const open = menu?.classList.toggle('hidden') === false;
       toggle.setAttribute('aria-expanded', String(open));
     });
+  </script>
+
+  <script>
+    import { supabase } from '../lib/supabase'
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const signInBtn = document.querySelector('a[href="/login"]') as HTMLAnchorElement | null
+      if (!signInBtn) return
+      if (session?.user) {
+        signInBtn.textContent = 'Sign out'
+        signInBtn.href = '#'
+        signInBtn.addEventListener('click', async (e) => {
+          e.preventDefault()
+          await supabase.auth.signOut()
+          window.location.href = '/login'
+        })
+      }
+    })
   </script>
 </html>

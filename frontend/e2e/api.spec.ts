@@ -1,8 +1,12 @@
 import { test, expect } from '@playwright/test';
 
+// In Docker (single container), API is at same origin /api/*.
+// In dev, API is at localhost:8080.
+const apiBase = process.env.BASE_URL || 'http://localhost:8080';
+
 test.describe('API health check', () => {
 	test('returns ok status', async ({ request }) => {
-		const res = await request.get('http://localhost:8080/api/health');
+		const res = await request.get(`${apiBase}/api/health`);
 		expect(res.ok()).toBeTruthy();
 		const body = await res.json();
 		expect(body.status).toBe('ok');
@@ -12,7 +16,7 @@ test.describe('API health check', () => {
 
 test.describe('Collection API', () => {
 	test('returns collection items', async ({ request }) => {
-		const res = await request.get('http://localhost:8080/api/collection');
+		const res = await request.get(`${apiBase}/api/collection`);
 		expect(res.ok()).toBeTruthy();
 		const items = await res.json();
 		expect(Array.isArray(items)).toBeTruthy();
@@ -27,7 +31,7 @@ test.describe('Collection API', () => {
 	});
 
 	test('returns collection stats', async ({ request }) => {
-		const res = await request.get('http://localhost:8080/api/collection/stats');
+		const res = await request.get(`${apiBase}/api/collection/stats`);
 		expect(res.ok()).toBeTruthy();
 		const stats = await res.json();
 		expect(typeof stats.collectionCount).toBe('number');
@@ -38,9 +42,9 @@ test.describe('Collection API', () => {
 
 	test('supports sort parameter', async ({ request }) => {
 		const [recent, artist, year] = await Promise.all([
-			request.get('http://localhost:8080/api/collection?sort='),
-			request.get('http://localhost:8080/api/collection?sort=artist'),
-			request.get('http://localhost:8080/api/collection?sort=year'),
+			request.get(`${apiBase}/api/collection?sort=`),
+			request.get(`${apiBase}/api/collection?sort=artist`),
+			request.get(`${apiBase}/api/collection?sort=year`),
 		]);
 		expect(recent.ok()).toBeTruthy();
 		expect(artist.ok()).toBeTruthy();
@@ -50,7 +54,7 @@ test.describe('Collection API', () => {
 
 test.describe('Wishlist API', () => {
 	test('returns wishlist items', async ({ request }) => {
-		const res = await request.get('http://localhost:8080/api/wishlist');
+		const res = await request.get(`${apiBase}/api/wishlist`);
 		expect(res.ok()).toBeTruthy();
 		const items = await res.json();
 		expect(Array.isArray(items)).toBeTruthy();

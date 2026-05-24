@@ -3,7 +3,6 @@ import Layout from '../layouts/Layout.astro';
 ---
 <Layout title="Sign In">
   <div class="max-w-sm mx-auto mt-12">
-
     <div class="text-center mb-8">
       <svg width="52" height="52" viewBox="0 0 52 52" class="mx-auto mb-4" aria-hidden="true">
         <circle cx="26" cy="26" r="25" fill="#412402"/>
@@ -17,8 +16,10 @@ import Layout from '../layouts/Layout.astro';
       <p class="text-gold-dark text-xs tracking-[0.1em] uppercase">Sign in to your collection</p>
     </div>
 
+    <div id="error-msg" class="hidden mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-3 text-center"></div>
+
     <div class="bg-white border border-gold/50 rounded-lg p-6 space-y-4">
-      <button class="w-full bg-espresso text-gold text-xs tracking-[0.1em] uppercase py-3 rounded hover:bg-espresso/90 transition-colors">
+      <button id="passkey-btn" class="w-full bg-espresso text-gold text-xs tracking-[0.1em] uppercase py-3 rounded hover:bg-espresso/90 transition-colors">
         Sign in with Passkey
       </button>
 
@@ -30,17 +31,76 @@ import Layout from '../layouts/Layout.astro';
       </div>
 
       <div class="space-y-2.5">
-        <input type="email" placeholder="Email address" class="w-full border border-gold/40 bg-cream text-espresso rounded px-4 py-2.5 text-sm placeholder:text-gold-muted/60 focus:outline-none focus:border-gold-dark" />
-        <input type="password" placeholder="Password" class="w-full border border-gold/40 bg-cream text-espresso rounded px-4 py-2.5 text-sm placeholder:text-gold-muted/60 focus:outline-none focus:border-gold-dark" />
-        <button class="w-full border border-espresso/30 text-espresso text-xs tracking-[0.08em] uppercase py-2.5 rounded hover:bg-espresso hover:text-gold transition-colors">
+        <input id="email" type="email" placeholder="Email address" class="w-full border border-gold/40 bg-cream text-espresso rounded px-4 py-2.5 text-sm placeholder:text-gold-muted/60 focus:outline-none focus:border-gold-dark" />
+        <input id="password" type="password" placeholder="Password" class="w-full border border-gold/40 bg-cream text-espresso rounded px-4 py-2.5 text-sm placeholder:text-gold-muted/60 focus:outline-none focus:border-gold-dark" />
+        <button id="email-signin-btn" class="w-full border border-espresso/30 text-espresso text-xs tracking-[0.08em] uppercase py-2.5 rounded hover:bg-espresso hover:text-gold transition-colors disabled:opacity-50">
           Sign in with email
         </button>
       </div>
 
       <p class="text-center text-[10px] text-gold-muted tracking-wide">
-        New here? <a href="#" class="text-espresso underline underline-offset-2">Create an account</a>
+        New here? <a href="/signup" class="text-espresso underline underline-offset-2">Create an account</a>
       </p>
     </div>
-
   </div>
 </Layout>
+
+<script>
+  import { supabase } from '../lib/supabase'
+
+  const errorMsg = document.getElementById('error-msg')!
+  const emailBtn = document.getElementById('email-signin-btn') as HTMLButtonElement
+  const passkeyBtn = document.getElementById('passkey-btn') as HTMLButtonElement
+
+  function showError(msg: string) {
+    errorMsg.textContent = msg
+    errorMsg.classList.remove('hidden')
+  }
+
+  emailBtn.addEventListener('click', async () => {
+    const email = (document.getElementById('email') as HTMLInputElement).value.trim()
+    const password = (document.getElementById('password') as HTMLInputElement).value
+    errorMsg.classList.add('hidden')
+
+    if (!email || !password) {
+      showError('Please enter your email and password.')
+      return
+    }
+
+    emailBtn.disabled = true
+    emailBtn.textContent = 'Signing in…'
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) {
+      showError(error.message)
+      emailBtn.disabled = false
+      emailBtn.textContent = 'Sign in with email'
+    } else {
+      window.location.href = '/'
+    }
+  })
+
+  passkeyBtn.addEventListener('click', async () => {
+    errorMsg.classList.add('hidden')
+    passkeyBtn.disabled = true
+    passkeyBtn.textContent = 'Waiting for passkey…'
+
+    try {
+      const { error } = await (supabase.auth as any).signInWithPasskey({
+        email: (document.getElementById('email') as HTMLInputElement).value.trim() || undefined
+      })
+
+      if (error) {
+        showError(error.message)
+      } else {
+        window.location.href = '/'
+      }
+    } catch (e: any) {
+      showError(e.message || 'Passkey sign-in failed.')
+    } finally {
+      passkeyBtn.disabled = false
+      passkeyBtn.textContent = 'Sign in with Passkey'
+    }
+  })
+</script>

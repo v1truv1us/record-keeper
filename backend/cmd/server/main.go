@@ -6,13 +6,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/v1truv1us/record-keeper/backend/internal/collection"
-	"github.com/v1truv1us/record-keeper/backend/internal/wishlist"
+	"github.com/v1truv1us/cratekeeper/backend/internal/collection"
+	"github.com/v1truv1us/cratekeeper/backend/internal/wishlist"
 )
 
 func main() {
@@ -49,6 +50,26 @@ func main() {
 
 	r.Mount("/api/collection", collection.NewHandler(pool).Routes())
 	r.Mount("/api/wishlist", wishlist.NewHandler(pool).Routes())
+
+	// Serve frontend static files (embedded at build time via Docker)
+	staticDir := os.Getenv("STATIC_DIR")
+	if staticDir == "" {
+		staticDir = "./frontend/dist"
+	}
+	if _, err := os.Stat(staticDir); err == nil {
+		fileServer := http.FileServer(http.Dir(staticDir))
+		r.Handle("/*", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			// Try exact file first, then fall back to index.html for SPA routing
+			fp := filepath.Join(staticDir, filepath.Clean(req.URL.Path))
+			if _, err := os.Stat(fp); err != nil {
+				req.URL.Path = "/"
+			}
+			fileServer.ServeHTTP(w, req)
+		}))
+		log.Printf("Serving frontend from %s", staticDir)
+	} else {
+		log.Printf("No frontend dist found at %s (API-only mode)", staticDir)
+	}
 
 	host := os.Getenv("HOST")
 	if host == "" {
