@@ -28,6 +28,7 @@ func main() {
 	_ = godotenv.Load()
 
 	// Initialize Sentry
+	sentryEnabled := false
 	if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
 		err := sentry.Init(sentry.ClientOptions{
 			Dsn:              dsn,
@@ -39,6 +40,7 @@ func main() {
 		if err != nil {
 			log.Printf("Sentry init failed: %v", err)
 		} else {
+			sentryEnabled = true
 			defer sentry.Flush(2 * time.Second)
 			log.Println("Sentry initialized")
 		}
@@ -65,7 +67,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
-	if os.Getenv("SENTRY_DSN") != "" {
+	if sentryEnabled {
 		r.Use(sentryhttp.New(sentryhttp.Options{}).Handle)
 	}
 	r.Use(corsMiddleware)
