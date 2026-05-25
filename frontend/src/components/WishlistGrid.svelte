@@ -205,7 +205,7 @@
 		<div class="bg-white border border-gold/50 rounded-lg p-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
 			<h2 class="sm:col-span-2 font-serif text-xl text-espresso">{editingId ? 'Edit wishlist item' : 'Add wishlist item'}</h2>
 			<div class="sm:col-span-2">
-				<label class="text-xs text-gold-dark uppercase tracking-wide">Search MusicBrainz<input class="mt-1 w-full border border-gold/40 rounded px-3 py-2 text-espresso normal-case" placeholder="A Love Supreme John Coltrane" bind:value={releaseQuery} /></label>
+				<label class="text-xs text-gold-dark uppercase tracking-wide">Search releases<input class="mt-1 w-full border border-gold/40 rounded px-3 py-2 text-espresso normal-case" placeholder="A Love Supreme John Coltrane" bind:value={releaseQuery} /></label>
 				<button type="button" disabled={searching} class="mt-2 text-xs border border-espresso/30 text-espresso px-3 py-1.5 rounded disabled:opacity-60" on:click={searchReleases}>{searching ? 'Searching...' : 'Search releases'}</button>
 				{#if releaseResults.length > 0}
 					<div class="mt-3 space-y-2">

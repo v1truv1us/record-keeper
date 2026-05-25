@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard', () => {
+	test('keeps protected dashboard content hidden while auth is unresolved', async ({ page }) => {
+		await page.goto('/', { waitUntil: 'domcontentloaded' });
+		await expect(page.locator('h1', { hasText: 'Your Crates' })).toBeHidden();
+	});
+
 	test('loads and shows the AudioFile branding', async ({ page }) => {
 		await page.goto('/');
 		await expect(page.locator('text=AudioFile').first()).toBeVisible();

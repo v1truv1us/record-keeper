@@ -2,9 +2,11 @@ package releases
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -23,6 +25,8 @@ type Handler struct {
 	discogsURL     string
 	discogsKey     string
 	discogsSecret  string
+	visionURL      string
+	visionKey      string
 }
 
 type SearchResult struct {
@@ -78,12 +82,15 @@ func NewHandler() *Handler {
 		discogsURL:     "https://api.discogs.com",
 		discogsKey:     os.Getenv("DISCOGS_CONSUMER_KEY"),
 		discogsSecret:  os.Getenv("DISCOGS_CONSUMER_SECRET"),
+		visionURL:      "https://api.openai.com",
+		visionKey:      os.Getenv("OPENAI_API_KEY"),
 	}
 }
 
 func (h *Handler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/search", h.search)
+	r.Post("/scan", h.scan)
 	return r
 }
 
@@ -105,24 +112,115 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	}
 	searchCache.Unlock()
 
-	if h.discogsKey != "" && h.discogsSecret != "" {
-		results, ok := h.searchDiscogs(w, r, q)
-		if !ok {
-			return
-		}
-		if len(results) > 0 {
-			cacheResults(key, results, now)
-			writeJSON(w, results)
-			return
-		}
-	}
-
-	results, ok := h.searchMusicBrainz(w, r, q)
+	results, ok := h.searchResults(w, r, q)
 	if !ok {
 		return
 	}
 	cacheResults(key, results, now)
 	writeJSON(w, results)
+}
+
+func (h *Handler) scan(w http.ResponseWriter, r *http.Request) {
+	if h.visionKey == "" {
+		http.Error(w, "record scanning is not configured", http.StatusServiceUnavailable)
+		return
+	}
+	if err := r.ParseMultipartForm(8 << 20); err != nil {
+		http.Error(w, "image is required", http.StatusBadRequest)
+		return
+	}
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "image is required", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	image, err := io.ReadAll(io.LimitReader(file, 6<<20))
+	if err != nil || len(image) == 0 {
+		http.Error(w, "image is required", http.StatusBadRequest)
+		return
+	}
+
+	query, ok := h.extractScanQuery(w, r, image, header.Header.Get("Content-Type"))
+	if !ok {
+		return
+	}
+	results, ok := h.searchResults(w, r, query)
+	if !ok {
+		return
+	}
+	writeJSON(w, map[string]any{"query": query, "results": results})
+}
+
+func (h *Handler) searchResults(w http.ResponseWriter, r *http.Request, q string) ([]SearchResult, bool) {
+	if h.discogsKey != "" && h.discogsSecret != "" {
+		results, ok := h.searchDiscogs(w, r, q)
+		if !ok {
+			return nil, false
+		}
+		if len(results) > 0 {
+			return results, true
+		}
+	}
+
+	return h.searchMusicBrainz(w, r, q)
+}
+
+func (h *Handler) extractScanQuery(w http.ResponseWriter, r *http.Request, image []byte, contentType string) (string, bool) {
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+	payload := map[string]any{
+		"model": "gpt-4o-mini",
+		"messages": []map[string]any{{
+			"role": "user",
+			"content": []map[string]any{
+				{"type": "text", "text": "Read this vinyl record cover or label. Return only the best Discogs search query as artist and title. If unsure, return the visible text."},
+				{"type": "image_url", "image_url": map[string]string{"url": "data:" + contentType + ";base64," + base64.StdEncoding.EncodeToString(image)}},
+			},
+		}},
+		"max_tokens": 40,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return "", false
+	}
+	visionBase := strings.TrimRight(h.visionURL, "/")
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, visionBase+"/v1/chat/completions", strings.NewReader(string(body)))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return "", false
+	}
+	req.Header.Set("Authorization", "Bearer "+h.visionKey)
+	req.Header.Set("Content-Type", "application/json")
+	res, err := h.client.Do(req)
+	if err != nil {
+		http.Error(w, "record scan is unavailable. Try search instead.", http.StatusBadGateway)
+		return "", false
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		http.Error(w, "record scan failed. Try search instead.", http.StatusBadGateway)
+		return "", false
+	}
+	var out struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil || len(out.Choices) == 0 {
+		http.Error(w, "record scan returned no text. Try search instead.", http.StatusBadGateway)
+		return "", false
+	}
+	query := strings.TrimSpace(out.Choices[0].Message.Content)
+	if query == "" {
+		http.Error(w, "record scan returned no text. Try search instead.", http.StatusBadGateway)
+		return "", false
+	}
+	return query, true
 }
 
 func (h *Handler) searchDiscogs(w http.ResponseWriter, r *http.Request, q string) ([]SearchResult, bool) {

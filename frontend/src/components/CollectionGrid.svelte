@@ -47,6 +47,8 @@
 	let releaseQuery = $state('');
 	let releaseResults: ReleaseSearchResult[] = $state([]);
 	let searching = $state(false);
+	let scanning = $state(false);
+	let scanImage: File | null = $state(null);
 
 	async function searchReleases() {
 		const q = releaseQuery.trim() || [form.title, form.artist].filter(Boolean).join(' ');
@@ -64,6 +66,28 @@
 			error = e instanceof Error ? e.message : 'Failed to search releases';
 		} finally {
 			searching = false;
+		}
+	}
+
+	async function scanRecord() {
+		if (!scanImage) {
+			error = 'Choose a record photo to scan.';
+			return;
+		}
+		scanning = true;
+		error = '';
+		try {
+			const data = new FormData();
+			data.set('image', scanImage);
+			const res = await apiFetch('/api/releases/scan', { method: 'POST', body: data });
+			if (!res.ok) throw new Error(await res.text());
+			const scan: { query: string; results: ReleaseSearchResult[] } = await res.json();
+			releaseQuery = scan.query;
+			releaseResults = scan.results;
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to scan record';
+		} finally {
+			scanning = false;
 		}
 	}
 
@@ -175,7 +199,11 @@
 	{#if showAddForm}
 		<div class="bg-white border border-gold/50 rounded-lg p-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
 			<div class="sm:col-span-2">
-				<label class="text-xs text-gold-dark uppercase tracking-wide">Search MusicBrainz<input class="mt-1 w-full border border-gold/40 rounded px-3 py-2 text-espresso normal-case" placeholder="Kind of Blue Miles Davis" bind:value={releaseQuery} /></label>
+				<label class="text-xs text-gold-dark uppercase tracking-wide">Scan record photo<input type="file" accept="image/*" capture="environment" class="mt-1 w-full border border-gold/40 rounded px-3 py-2 text-espresso normal-case" on:change={(e) => scanImage = e.currentTarget.files?.[0] ?? null} /></label>
+				<button type="button" disabled={scanning} class="mt-2 text-xs border border-espresso/30 text-espresso px-3 py-1.5 rounded disabled:opacity-60" on:click={scanRecord}>{scanning ? 'Scanning...' : 'Scan record'}</button>
+			</div>
+			<div class="sm:col-span-2">
+				<label class="text-xs text-gold-dark uppercase tracking-wide">Search releases<input class="mt-1 w-full border border-gold/40 rounded px-3 py-2 text-espresso normal-case" placeholder="Kind of Blue Miles Davis" bind:value={releaseQuery} /></label>
 				<button type="button" disabled={searching} class="mt-2 text-xs border border-espresso/30 text-espresso px-3 py-1.5 rounded disabled:opacity-60" on:click={searchReleases}>{searching ? 'Searching...' : 'Search releases'}</button>
 				{#if releaseResults.length > 0}
 					<div class="mt-3 space-y-2">
