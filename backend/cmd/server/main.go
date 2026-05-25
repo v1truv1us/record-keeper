@@ -85,7 +85,12 @@ func main() {
 				"version": "0.2.0",
 			})
 		})
-		r.Mount("/releases", releases.NewHandler().Routes())
+		r.Mount("/releases", func() chi.Router {
+			discogs := releases.NewDiscogsClient("", os.Getenv("DISCOGS_CONSUMER_KEY"), os.Getenv("DISCOGS_CONSUMER_SECRET"))
+			h := releases.NewHandler(discogs)
+			h.SetDiscogs(discogs)
+			return h.Routes()
+		}())
 
 		// Authenticated routes
 		r.Group(func(r chi.Router) {

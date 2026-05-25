@@ -8,8 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -20,30 +18,10 @@ import (
 type Handler struct {
 	client         *http.Client
 	musicBrainzURL string
-	discogsURL     string
-	discogsKey     string
-	discogsSecret  string
+	searchers      []ReleaseSearcher
+	discogs        *DiscogsClient
 }
 
-type SearchResult struct {
-	MBID     string `json:"mbid"`
-	Title    string `json:"title"`
-	Artist   string `json:"artist"`
-	Year     *int   `json:"year,omitempty"`
-	Label    string `json:"label,omitempty"`
-	CoverURL string `json:"coverUrl,omitempty"`
-}
-
-type discogsSearch struct {
-	Results []struct {
-		ID          int      `json:"id"`
-		Title       string   `json:"title"`
-		Year        *int     `json:"year"`
-		Label       []string `json:"label"`
-		CoverImage  string   `json:"cover_image"`
-		ResourceURL string   `json:"resource_url"`
-	} `json:"results"`
-}
 
 type musicBrainzSearch struct {
 	Releases []struct {
@@ -71,14 +49,18 @@ var searchCache = struct {
 	items map[string]searchCacheEntry
 }{items: map[string]searchCacheEntry{}}
 
-func NewHandler() *Handler {
+// NewHandler creates a release handler with the given search sources.
+func NewHandler(searchers ...ReleaseSearcher) *Handler {
 	return &Handler{
 		client:         &http.Client{Timeout: 6 * time.Second},
 		musicBrainzURL: "https://musicbrainz.org",
-		discogsURL:     "https://api.discogs.com",
-		discogsKey:     os.Getenv("DISCOGS_CONSUMER_KEY"),
-		discogsSecret:  os.Getenv("DISCOGS_CONSUMER_SECRET"),
+		searchers:      searchers,
 	}
+}
+
+// SetDiscogs sets the Discogs client for barcode scanning.
+func (h *Handler) SetDiscogs(d *DiscogsClient) {
+	h.discogs = d
 }
 
 func (h *Handler) Routes() chi.Router {
@@ -127,18 +109,23 @@ func (h *Handler) scan(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "barcode is required", http.StatusBadRequest)
 		return
 	}
-	results, ok := h.searchDiscogsBarcode(w, r, barcode)
-	if !ok {
+	if h.discogs == nil {
+		http.Error(w, "barcode scanning requires Discogs credentials", http.StatusServiceUnavailable)
+		return
+	}
+	results, err := h.discogs.SearchBarcode(r.Context(), barcode)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
 	}
 	writeJSON(w, map[string]any{"barcode": barcode, "results": results})
 }
 
 func (h *Handler) searchResults(w http.ResponseWriter, r *http.Request, q string) ([]SearchResult, bool) {
-	if h.discogsKey != "" && h.discogsSecret != "" {
-		results, ok := h.searchDiscogs(w, r, q)
-		if !ok {
-			return nil, false
+	for _, s := range h.searchers {
+		results, err := s.Search(r.Context(), q)
+		if err != nil {
+			continue
 		}
 		if len(results) > 0 {
 			return results, true
@@ -146,62 +133,6 @@ func (h *Handler) searchResults(w http.ResponseWriter, r *http.Request, q string
 	}
 
 	return h.searchMusicBrainz(w, r, q)
-}
-
-func (h *Handler) searchDiscogs(w http.ResponseWriter, r *http.Request, q string) ([]SearchResult, bool) {
-	return h.searchDiscogsWithParam(w, r, "q", q)
-}
-
-func (h *Handler) searchDiscogsBarcode(w http.ResponseWriter, r *http.Request, barcode string) ([]SearchResult, bool) {
-	return h.searchDiscogsWithParam(w, r, "barcode", barcode)
-}
-
-func (h *Handler) searchDiscogsWithParam(w http.ResponseWriter, r *http.Request, param string, value string) ([]SearchResult, bool) {
-	if h.discogsKey == "" || h.discogsSecret == "" {
-		http.Error(w, "barcode scanning requires Discogs credentials", http.StatusServiceUnavailable)
-		return nil, false
-	}
-	reqURL := h.discogsURL + "/database/search?type=release&per_page=8&" + param + "=" + url.QueryEscape(value) + "&key=" + url.QueryEscape(h.discogsKey) + "&secret=" + url.QueryEscape(h.discogsSecret)
-	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, reqURL, nil)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return nil, false
-	}
-	req.Header.Set("User-Agent", "AudioFile/0.2.0 +https://audiofile.app")
-
-	res, err := h.client.Do(req)
-	if err != nil {
-		var netErr net.Error
-		if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &netErr) && netErr.Timeout() {
-			http.Error(w, "Discogs search timed out. Try again in a moment or enter the release details manually.", http.StatusGatewayTimeout)
-			return nil, false
-		}
-		return nil, true
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return nil, true
-	}
-
-	var discogs discogsSearch
-	if err := json.NewDecoder(res.Body).Decode(&discogs); err != nil {
-		return nil, true
-	}
-
-	results := make([]SearchResult, 0, len(discogs.Results))
-	for _, rel := range discogs.Results {
-		artist, title := splitDiscogsTitle(rel.Title)
-		result := SearchResult{
-			MBID:     strconv.Itoa(rel.ID),
-			Title:    title,
-			Artist:   artist,
-			Year:     rel.Year,
-			Label:    firstString(rel.Label),
-			CoverURL: rel.CoverImage,
-		}
-		results = append(results, result)
-	}
-	return results, true
 }
 
 func (h *Handler) searchMusicBrainz(w http.ResponseWriter, r *http.Request, q string) ([]SearchResult, bool) {
@@ -268,14 +199,6 @@ func cleanBarcode(value string) string {
 		}
 	}
 	return b.String()
-}
-
-func splitDiscogsTitle(value string) (string, string) {
-	parts := strings.SplitN(value, " - ", 2)
-	if len(parts) != 2 {
-		return "", value
-	}
-	return parts[0], parts[1]
 }
 
 func firstString(values []string) string {
