@@ -29,20 +29,6 @@ import Layout from '../layouts/Layout.astro';
         </button>
       </div>
 
-      <div id="passkey-section" class="hidden space-y-3 border-t border-gold-muted/30 pt-4">
-        <div>
-          <h2 class="font-serif text-xl text-espresso font-normal">Add a passkey</h2>
-          <p class="text-xs text-gold-dark mt-1">Use Face ID, Touch ID, Windows Hello, or your device lock to sign in next time.</p>
-        </div>
-        <input id="passkey-name" type="text" placeholder="Passkey name (optional)" class="w-full border border-gold/40 bg-cream text-espresso rounded px-4 py-2.5 text-sm placeholder:text-gold-muted/60 focus:outline-none focus:border-gold-dark" />
-        <button id="register-passkey-btn" class="w-full bg-espresso text-gold text-xs tracking-[0.1em] uppercase py-3 rounded hover:bg-espresso/90 transition-colors disabled:opacity-50">
-          Register Passkey
-        </button>
-        <button id="skip-passkey-btn" class="w-full text-espresso text-xs tracking-[0.08em] uppercase py-2.5 rounded hover:bg-cream transition-colors">
-          Skip for now
-        </button>
-      </div>
-
       <p class="text-center text-[10px] text-gold-muted tracking-wide">
         Already have an account? <a href="/login" class="text-espresso underline underline-offset-2">Sign in</a>
       </p>
@@ -51,14 +37,9 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script>
-  import { registerCurrentUserPasskey, getErrorMessage } from '../lib/passkeys'
   import { supabase } from '../lib/supabase'
 
   const btn = document.getElementById('signup-btn') as HTMLButtonElement
-  const registerPasskeyBtn = document.getElementById('register-passkey-btn') as HTMLButtonElement
-  const skipPasskeyBtn = document.getElementById('skip-passkey-btn') as HTMLButtonElement
-  const signupSection = document.getElementById('signup-section')!
-  const passkeySection = document.getElementById('passkey-section')!
   const errorMsg = document.getElementById('error-msg')!
   const successMsg = document.getElementById('success-msg')!
 
@@ -98,7 +79,13 @@ import Layout from '../layouts/Layout.astro';
     btn.disabled = true
     btn.textContent = 'Creating account…'
 
-    const { error } = await supabase.auth.signUp({ email, password })
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/`,
+      },
+    })
 
     if (error) {
       showError(error.message)
@@ -109,43 +96,12 @@ import Layout from '../layouts/Layout.astro';
 
     const { data: sessionData } = await supabase.auth.getSession()
 
-    btn.disabled = true
-    signupSection.classList.add('hidden')
-
     if (sessionData.session) {
-      showSuccess('Account created. Add a passkey now so you can sign in with this device next time.')
-      passkeySection.classList.remove('hidden')
-    } else {
-      showSuccess('Account created! Check your email to confirm, then sign in and add a passkey from settings.')
-    }
-  })
-
-  registerPasskeyBtn.addEventListener('click', async () => {
-    errorMsg.classList.add('hidden')
-    successMsg.classList.add('hidden')
-    registerPasskeyBtn.disabled = true
-    registerPasskeyBtn.textContent = 'Waiting for passkey…'
-
-    try {
-      const friendlyName = (document.getElementById('passkey-name') as HTMLInputElement).value
-      const { error } = await registerCurrentUserPasskey(friendlyName)
-
-      if (error) {
-        showError(error.message)
-        return
-      }
-
-      showSuccess('Passkey registered. Redirecting…')
+      // Auto-confirmed — go straight to dashboard
       window.location.href = '/'
-    } catch (error: unknown) {
-      showError(getErrorMessage(error, 'Passkey registration failed.'))
-    } finally {
-      registerPasskeyBtn.disabled = false
-      registerPasskeyBtn.textContent = 'Register Passkey'
+    } else {
+      showSuccess('Account created! Check your email to confirm your address, then sign in.')
+      btn.textContent = 'Check your email'
     }
-  })
-
-  skipPasskeyBtn.addEventListener('click', () => {
-    window.location.href = '/'
   })
 </script>

@@ -19,22 +19,11 @@ import Layout from '../layouts/Layout.astro';
     <div id="error-msg" class="hidden mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-4 py-3 text-center"></div>
 
     <div class="bg-white border border-gold/50 rounded-lg p-6 space-y-4">
-      <button id="passkey-btn" class="w-full bg-espresso text-gold text-xs tracking-[0.1em] uppercase py-3 rounded hover:bg-espresso/90 transition-colors">
-        Sign in with Passkey
-      </button>
-
-      <div class="relative">
-        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gold-muted/30"></div></div>
-        <div class="relative text-center">
-          <span class="bg-white px-3 text-[10px] text-gold-muted tracking-widest uppercase">or</span>
-        </div>
-      </div>
-
       <div class="space-y-2.5">
         <input id="email" type="email" placeholder="Email address" class="w-full border border-gold/40 bg-cream text-espresso rounded px-4 py-2.5 text-sm placeholder:text-gold-muted/60 focus:outline-none focus:border-gold-dark" />
         <input id="password" type="password" placeholder="Password" class="w-full border border-gold/40 bg-cream text-espresso rounded px-4 py-2.5 text-sm placeholder:text-gold-muted/60 focus:outline-none focus:border-gold-dark" />
-        <button id="email-signin-btn" class="w-full border border-espresso/30 text-espresso text-xs tracking-[0.08em] uppercase py-2.5 rounded hover:bg-espresso hover:text-gold transition-colors disabled:opacity-50">
-          Sign in with email
+        <button id="email-signin-btn" class="w-full bg-espresso text-gold text-xs tracking-[0.1em] uppercase py-3 rounded hover:bg-espresso/90 transition-colors disabled:opacity-50">
+          Sign in
         </button>
       </div>
 
@@ -46,12 +35,10 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script>
-  import { getErrorMessage, signInWithPasskey } from '../lib/passkeys'
   import { supabase } from '../lib/supabase'
 
   const errorMsg = document.getElementById('error-msg')!
   const emailBtn = document.getElementById('email-signin-btn') as HTMLButtonElement
-  const passkeyBtn = document.getElementById('passkey-btn') as HTMLButtonElement
 
   function showError(msg: string) {
     errorMsg.textContent = msg
@@ -76,30 +63,9 @@ import Layout from '../layouts/Layout.astro';
     if (error) {
       showError(error.message)
       emailBtn.disabled = false
-      emailBtn.textContent = 'Sign in with email'
+      emailBtn.textContent = 'Sign in'
     } else {
       window.location.href = '/'
-    }
-  })
-
-  passkeyBtn.addEventListener('click', async () => {
-    errorMsg.classList.add('hidden')
-    passkeyBtn.disabled = true
-    passkeyBtn.textContent = 'Waiting for passkey…'
-
-    try {
-      const { error } = await signInWithPasskey()
-
-      if (error) {
-        showError(error.message)
-      } else {
-        window.location.href = '/'
-      }
-    } catch (error: unknown) {
-      showError(getErrorMessage(error, 'Passkey sign-in failed.'))
-    } finally {
-      passkeyBtn.disabled = false
-      passkeyBtn.textContent = 'Sign in with Passkey'
     }
   })
 </script>
