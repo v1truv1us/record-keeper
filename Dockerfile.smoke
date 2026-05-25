@@ -1,0 +1,11 @@
+FROM mcr.microsoft.com/playwright:v1.60.0-noble
+
+WORKDIR /app
+COPY frontend/package.json frontend/bun.lock ./frontend/
+RUN cd frontend && npm install -g bun && bun install --frozen-lockfile
+COPY frontend ./frontend
+
+ENV BASE_URL=https://audiofile.app
+ENV PORT=3000
+WORKDIR /app/frontend
+CMD ["node", "scripts/smoke-server.mjs"]
