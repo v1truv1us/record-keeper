@@ -45,7 +45,10 @@ const server = http.createServer(async (req, res) => {
 	res.end('not found');
 });
 
+const intervalMs = Number(process.env.SMOKE_INTERVAL_MS || 30 * 60 * 1000); // default 30min
+
 server.listen(port, '0.0.0.0', () => {
-	console.log(`Smoke runner listening on ${port}`);
+	console.log(`Smoke runner listening on ${port} (interval: ${intervalMs}ms)`);
 	runSmoke();
+	setInterval(() => runSmoke(), intervalMs);
 });
