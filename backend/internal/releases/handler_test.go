@@ -45,7 +45,7 @@ func TestScanSearchesDiscogsByBarcode(t *testing.T) {
 	}))
 	defer server.Close()
 
-	h := &Handler{client: server.Client(), discogs: NewDiscogsClient(server.URL, "discogs-key", "discogs-secret")}
+	h := &Handler{discogs: NewDiscogsClient(server.URL, "discogs-key", "discogs-secret")}
 	req := httptest.NewRequest(http.MethodPost, "/scan", strings.NewReader(`{"barcode":"018771210510"}`))
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
@@ -92,7 +92,7 @@ func TestSearchRequiresQuery(t *testing.T) {
 func TestSearchUsesCachedResults(t *testing.T) {
 	key := "cached query"
 	cacheResults(key, []SearchResult{{MBID: "cached-id", Title: "Cached"}}, time.Now())
-	h := &Handler{client: http.DefaultClient, musicBrainzURL: "http://unused.invalid"}
+	h := &Handler{searchers: []ReleaseSearcher{NewMusicBrainzClient("http://unused.invalid")}}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=cached+query", nil)
 	res := httptest.NewRecorder()
 
@@ -103,26 +103,25 @@ func TestSearchUsesCachedResults(t *testing.T) {
 	}
 }
 
-func TestSearchMapsMusicBrainzTimeoutToFriendlyGatewayTimeout(t *testing.T) {
+func TestSearchReturnsBadGatewayWhenAllSearchersFail(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
 	}))
 	defer server.Close()
 
 	h := &Handler{
-		client:         &http.Client{Timeout: 1 * time.Millisecond},
-		musicBrainzURL: server.URL,
+		searchers: []ReleaseSearcher{&MusicBrainzClient{client: &http.Client{Timeout: 1 * time.Millisecond}, baseURL: server.URL}},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=Until+The+Sun+Explodes", nil)
 	res := httptest.NewRecorder()
 
 	h.search(res, req)
 
-	if res.Code != http.StatusGatewayTimeout {
-		t.Fatalf("expected status %d, got %d with body %q", http.StatusGatewayTimeout, res.Code, res.Body.String())
+	if res.Code != http.StatusBadGateway {
+		t.Fatalf("expected status %d, got %d with body %q", http.StatusBadGateway, res.Code, res.Body.String())
 	}
-	if !strings.Contains(res.Body.String(), "MusicBrainz search timed out") {
-		t.Fatalf("expected friendly timeout message, got %q", res.Body.String())
+	if strings.Contains(res.Body.String(), "context deadline exceeded") {
+		t.Fatalf("expected friendly message, got raw error: %q", res.Body.String())
 	}
 	if strings.Contains(res.Body.String(), "context deadline exceeded") {
 		t.Fatalf("expected raw Go timeout to be hidden, got %q", res.Body.String())
@@ -135,7 +134,7 @@ func TestSearchFallsThroughWhenSearcherTimesOut(t *testing.T) {
 	}))
 	defer server.Close()
 
-	h := &Handler{client: &http.Client{Timeout: time.Millisecond}, discogs: NewDiscogsClient(server.URL, "key", "secret"), searchers: []ReleaseSearcher{NewDiscogsClient(server.URL, "key", "secret")}}
+	h := &Handler{discogs: NewDiscogsClient(server.URL, "key", "secret"), searchers: []ReleaseSearcher{NewDiscogsClient(server.URL, "key", "secret")}}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=slow-discogs", nil)
 	res := httptest.NewRecorder()
 
@@ -160,7 +159,7 @@ func TestSearchUsesDiscogsBeforeMusicBrainz(t *testing.T) {
 	}))
 	defer server.Close()
 
-	h := &Handler{client: server.Client(), discogs: NewDiscogsClient(server.URL, "key", "secret"), musicBrainzURL: "http://unused.invalid", searchers: []ReleaseSearcher{NewDiscogsClient(server.URL, "key", "secret")}}
+	h := &Handler{discogs: NewDiscogsClient(server.URL, "key", "secret"), searchers: []ReleaseSearcher{NewDiscogsClient(server.URL, "key", "secret"), NewMusicBrainzClient("http://unused.invalid")}}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=kind+of+blue", nil)
 	res := httptest.NewRecorder()
 
@@ -188,7 +187,7 @@ func TestSearchFallsBackToMusicBrainzWhenDiscogsHasNoResults(t *testing.T) {
 	}))
 	defer server.Close()
 
-	h := &Handler{client: server.Client(), musicBrainzURL: server.URL, discogs: NewDiscogsClient(server.URL, "key", "secret"), searchers: []ReleaseSearcher{NewDiscogsClient(server.URL, "key", "secret")}}
+	h := &Handler{discogs: NewDiscogsClient(server.URL, "key", "secret"), searchers: []ReleaseSearcher{NewDiscogsClient(server.URL, "key", "secret"), NewMusicBrainzClient(server.URL)}}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=empty-discogs", nil)
 	res := httptest.NewRecorder()
 
@@ -213,7 +212,7 @@ func TestSearchFallsBackToMusicBrainzWhenDiscogsReturnsInvalidJSON(t *testing.T)
 	}))
 	defer server.Close()
 
-	h := &Handler{client: server.Client(), musicBrainzURL: server.URL, discogs: NewDiscogsClient(server.URL, "key", "secret"), searchers: []ReleaseSearcher{NewDiscogsClient(server.URL, "key", "secret")}}
+	h := &Handler{discogs: NewDiscogsClient(server.URL, "key", "secret"), searchers: []ReleaseSearcher{NewDiscogsClient(server.URL, "key", "secret"), NewMusicBrainzClient(server.URL)}}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=invalid-discogs-json", nil)
 	res := httptest.NewRecorder()
 
@@ -228,7 +227,7 @@ func TestSearchReturnsBadGatewayForMusicBrainzStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusInternalServerError) }))
 	defer server.Close()
 
-	h := &Handler{client: server.Client(), musicBrainzURL: server.URL}
+	h := &Handler{searchers: []ReleaseSearcher{NewMusicBrainzClient(server.URL)}}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=mb-status", nil)
 	res := httptest.NewRecorder()
 
@@ -243,7 +242,7 @@ func TestSearchReturnsBadGatewayForMusicBrainzInvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(`{`)) }))
 	defer server.Close()
 
-	h := &Handler{client: server.Client(), musicBrainzURL: server.URL}
+	h := &Handler{searchers: []ReleaseSearcher{NewMusicBrainzClient(server.URL)}}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=mb-invalid-json", nil)
 	res := httptest.NewRecorder()
 
@@ -264,7 +263,7 @@ func TestSearchParsesMusicBrainzResults(t *testing.T) {
 	}))
 	defer server.Close()
 
-	h := &Handler{client: server.Client(), musicBrainzURL: server.URL}
+	h := &Handler{searchers: []ReleaseSearcher{NewMusicBrainzClient(server.URL)}}
 	req := httptest.NewRequest(http.MethodGet, "/search?q=musicbrainz-kind-of-blue", nil)
 	res := httptest.NewRecorder()
 

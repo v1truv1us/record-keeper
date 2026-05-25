@@ -87,7 +87,13 @@ func main() {
 		})
 		r.Mount("/releases", func() chi.Router {
 			discogs := releases.NewDiscogsClient("", os.Getenv("DISCOGS_CONSUMER_KEY"), os.Getenv("DISCOGS_CONSUMER_SECRET"))
-			h := releases.NewHandler(discogs)
+			mb := releases.NewMusicBrainzClient("")
+			searchers := []releases.ReleaseSearcher{}
+			if discogs != nil {
+				searchers = append(searchers, discogs)
+			}
+			searchers = append(searchers, mb)
+			h := releases.NewHandler(searchers...)
 			h.SetDiscogs(discogs)
 			return h.Routes()
 		}())
