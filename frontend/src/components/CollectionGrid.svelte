@@ -60,7 +60,7 @@
 		searching = true;
 		error = '';
 		try {
-			const res = await apiFetch(`/api/releases/search?q=${encodeURIComponent(q)}`);
+			const res = await apiFetch(`/api/releases/search?q=${encodeURIComponent(q)}`, { public: true });
 			if (!res.ok) throw new Error(await res.text());
 			releaseResults = await res.json();
 		} catch (e) {
@@ -93,6 +93,7 @@
 				return;
 			}
 			const res = await apiFetch('/api/releases/scan', {
+				public: true,
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ barcode: scannedBarcode }),
