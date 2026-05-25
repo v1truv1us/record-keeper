@@ -50,14 +50,18 @@ test.describe('Smoke — production site', () => {
 		expect(body.status).toBe('ok');
 	});
 
-	test('release search endpoint is available', async ({ request }) => {
+	test('release search returns a recognizable result', async ({ request }) => {
 		const resp = await request.get(`${BASE}/api/releases/search?q=kind%20of%20blue%20miles%20davis`);
 		expect(resp.status()).toBe(200);
 		const body = await resp.json();
 		expect(Array.isArray(body)).toBe(true);
+		expect(body.length).toBeGreaterThan(0);
+		expect(body.some((release: { title?: string; artist?: string }) =>
+			/revolver|kind of blue/i.test(release.title ?? '') || /miles davis|beatles/i.test(release.artist ?? ''),
+		)).toBe(true);
 	});
 
-	test('barcode scan endpoint is available', async ({ request }) => {
+	test('barcode scan endpoint accepts barcode lookups', async ({ request }) => {
 		const resp = await request.post(`${BASE}/api/releases/scan`, {
 			data: { barcode: '018771210510' },
 		});
