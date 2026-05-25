@@ -40,7 +40,7 @@ async function checkAPI() {
 async function checkBrowser() {
 	const browser = browserlessEndpoint
 		? await chromium.connectOverCDP(browserlessEndpoint)
-		: await chromium.launch();
+		: await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH });
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 		await page.goto(`${baseURL}/login/`);
