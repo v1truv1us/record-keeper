@@ -1,6 +1,7 @@
 <script lang="ts">
 	import WishlistRow from './WishlistRow.svelte';
 	import { apiFetch } from '../lib/api';
+	import { type ReleaseSearchResult } from '../lib/barcode';
 
 	type ApiItem = {
 		id: string;
@@ -19,13 +20,6 @@
 	let saving = $state(false);
 	let error = $state('');
 	let shareMessage = $state('');
-	type ReleaseSearchResult = {
-		title: string;
-		artist: string;
-		year?: number;
-		label?: string;
-		coverUrl?: string;
-	};
 
 	let form = $state({
 		title: '',

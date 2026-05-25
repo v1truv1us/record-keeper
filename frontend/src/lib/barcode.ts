@@ -8,11 +8,6 @@ interface BarcodeDetectorWindow extends Window {
 	BarcodeDetector?: BarcodeDetectorClass;
 }
 
-export interface ScanResult {
-	barcode: string;
-	results: { barcode: string; results: ReleaseSearchResult[] };
-}
-
 export interface ReleaseSearchResult {
 	mbid: string;
 	title: string;

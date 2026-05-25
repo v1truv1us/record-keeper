@@ -89,7 +89,7 @@ func (h *Handler) scan(w http.ResponseWriter, r *http.Request) {
 	}
 	results, err := h.discogs.SearchBarcode(r.Context(), barcode)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		http.Error(w, "barcode lookup failed. Try again later.", http.StatusBadGateway)
 		return
 	}
 	writeJSON(w, map[string]any{"barcode": barcode, "results": results})
@@ -130,13 +130,6 @@ func cleanBarcode(value string) string {
 		}
 	}
 	return b.String()
-}
-
-func firstString(values []string) string {
-	if len(values) == 0 {
-		return ""
-	}
-	return values[0]
 }
 
 func writeJSON(w http.ResponseWriter, value any) {

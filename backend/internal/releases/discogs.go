@@ -100,3 +100,10 @@ func splitDiscogsTitle(value string) (string, string) {
 	}
 	return parts[0], parts[1]
 }
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
