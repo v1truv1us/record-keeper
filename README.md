@@ -80,3 +80,34 @@ cratekeeper/
 └── docs/
     └── adr/               # Architecture Decision Records
 ```
+
+## Post-Deploy Smoke Tests
+
+AudioFile uses an automated post-deploy smoke test pipeline:
+
+1. **AudioFile** deploys via Coolify.
+2. Coolify runs post-deployment command: `curl -fsS -X POST https://r114tdxpc3tiziic7ynxz5in.fergify.work/run`
+3. **Smoke Runner** (`audiofile-smoke-runner`) executes Playwright tests against production.
+4. **Browserless** (`audiofile-browserless`) provides the headless Chromium runtime.
+
+### Smoke test coverage
+
+- `/api/health` returns 200
+- `/api/releases/search?q=...` returns recognizable results
+- `/api/releases/scan` accepts barcode lookups
+- `/login/` renders login page
+- `/signup/` renders signup page
+- `/collection/` redirects unauthenticated users to login
+
+### Manual trigger
+
+```bash
+curl -X POST https://r114tdxpc3tiziic7ynxz5in.fergify.work/run
+```
+
+### Check status
+
+```bash
+curl https://r114tdxpc3tiziic7ynxz5in.fergify.work/health
+```
+
