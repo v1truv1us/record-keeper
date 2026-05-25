@@ -1,7 +1,53 @@
 import http from 'node:http';
+import https from 'node:https';
 import { spawn } from 'node:child_process';
 
 const port = Number(process.env.PORT || 3000);
+const webhookUrl = process.env.NOTIFICATION_WEBHOOK || '';
+const coolifyToken = process.env.COOLIFY_API_TOKEN || '';
+const coolifyAppUuid = process.env.COOLIFY_APP_UUID || '';
+const coolifyBase = process.env.COOLIFY_BASE_URL || 'https://coolify.fergify.work';
+
+async function notify(result) {
+	if (!webhookUrl) return;
+	const payload = JSON.stringify({
+		content: `🚨 **AudioFile smoke test FAILED** at ${result.finishedAt}\n\`\`\`${(result.output || '').slice(-500)}\`\`\``,
+	});
+	try {
+		const url = new URL(webhookUrl);
+		const mod = url.protocol === 'https:' ? https : http;
+		await new Promise((resolve, reject) => {
+			const req = mod.request(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } }, (res) => { res.resume(); res.on('end', resolve); });
+			req.on('error', reject);
+			req.write(payload);
+			req.end();
+		});
+		console.log('Notification sent');
+	} catch (e) {
+		console.error('Notification failed:', e.message);
+	}
+}
+
+async function rollback() {
+	if (!coolifyToken || !coolifyAppUuid) return;
+	try {
+		const url = new URL(`${coolifyBase}/api/v1/deployments?uuid=${coolifyAppUuid}`);
+		await new Promise((resolve, reject) => {
+			const req = https.request(url, { headers: { Authorization: `Bearer ${coolifyToken}`, Accept: 'application/json' } }, (res) => {
+				let body = '';
+				res.on('data', (c) => body += c);
+				res.on('end', () => {
+					console.log('Rollback check:', body.slice(0, 200));
+					resolve();
+				});
+			});
+			req.on('error', reject);
+			req.end();
+		});
+	} catch (e) {
+		console.error('Rollback failed:', e.message);
+	}
+}
 let lastRun = { status: 'never-run', code: null, output: '', finishedAt: null };
 let running = false;
 
@@ -16,7 +62,7 @@ function runSmoke() {
 		});
 		child.stdout.on('data', (chunk) => { lastRun.output += chunk; });
 		child.stderr.on('data', (chunk) => { lastRun.output += chunk; });
-		child.on('close', (code) => {
+		child.on('close', async (code) => {
 			lastRun = {
 				...lastRun,
 				status: code === 0 ? 'passed' : 'failed',
@@ -24,6 +70,10 @@ function runSmoke() {
 				finishedAt: new Date().toISOString(),
 			};
 			running = false;
+			if (code !== 0) {
+				await notify(lastRun);
+				await rollback();
+			}
 			resolve(lastRun);
 		});
 	});
