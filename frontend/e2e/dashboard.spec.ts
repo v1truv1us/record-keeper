@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Dashboard', () => {
-	test('loads and shows the CrateKeeper branding', async ({ page }) => {
+	test('loads and shows the AudioFile branding', async ({ page }) => {
 		await page.goto('/');
-		await expect(page.locator('text=CrateKeeper')).toBeVisible();
-		await expect(page).toHaveTitle(/Dashboard.*CrateKeeper/);
+		await expect(page.locator('text=AudioFile').first()).toBeVisible();
+		await expect(page).toHaveTitle(/Dashboard.*AudioFile/);
 	});
 
 	test('shows stat cards after data loads', async ({ page }) => {

@@ -4,7 +4,7 @@ test.describe('Wishlist page', () => {
 	test('loads and shows wishlist heading', async ({ page }) => {
 		await page.goto('/wishlist');
 		await expect(page.locator('text=Wishlist')).toBeVisible();
-		await expect(page).toHaveTitle(/Wishlist.*CrateKeeper/);
+		await expect(page).toHaveTitle(/Wishlist.*AudioFile/);
 	});
 
 	test('shows wishlist items from API', async ({ page }) => {

@@ -1,4 +1,4 @@
-# CrateKeeper
+# AudioFile
 
 Vinyl collection manager for serious diggers.
 
@@ -7,7 +7,7 @@ Vinyl collection manager for serious diggers.
 - **Frontend**: Astro + Svelte 5 + Tailwind CSS
 - **Backend**: Go + Chi router
 - **Database**: Supabase Postgres (local dev via `supabase start`)
-- **Auth**: Supabase Auth (passkeys + email/password)
+- **Auth**: Supabase Auth (email/password)
 - **Photos**: Supabase Storage
 - **Search**: Postgres tsvector + GIN index
 

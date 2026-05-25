@@ -100,7 +100,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("CrateKeeper API listening on %s:%s", host, port)
+	log.Printf("AudioFile API listening on %s:%s", host, port)
 	if err := http.ListenAndServe(host+":"+port, r); err != nil {
 		log.Fatalf("server error: %v", err)
 	}

@@ -202,7 +202,7 @@ func TestSearchReturnsBadGatewayForMusicBrainzInvalidJSON(t *testing.T) {
 func TestSearchParsesMusicBrainzResults(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("User-Agent"); !strings.Contains(got, "AudioFile") {
-			t.Fatalf("expected CrateKeeper user agent, got %q", got)
+			t.Fatalf("expected AudioFile user agent, got %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"releases":[{"id":"abc","title":"Kind of Blue","date":"1959-08-17","artist-credit":[{"name":"Miles Davis"}],"label-info":[{"label":{"name":"Columbia"}}]}]}`))

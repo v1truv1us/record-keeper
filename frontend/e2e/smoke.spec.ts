@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-const BASE = process.env.BASE_URL || 'https://crate-keeper.com';
+const BASE = process.env.BASE_URL || 'https://audiofile.app';
 
 test.describe('Smoke — production site', () => {
 	test('login page loads correctly', async ({ page }) => {

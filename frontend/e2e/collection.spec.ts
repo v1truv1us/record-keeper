@@ -4,7 +4,7 @@ test.describe('Collection page', () => {
 	test('loads and shows collection heading', async ({ page }) => {
 		await page.goto('/collection');
 		await expect(page.locator('text=Collection')).toBeVisible();
-		await expect(page).toHaveTitle(/Collection.*CrateKeeper/);
+		await expect(page).toHaveTitle(/Collection.*AudioFile/);
 	});
 
 	test('shows sort dropdown', async ({ page }) => {
