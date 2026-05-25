@@ -1,6 +1,7 @@
 <script lang="ts">
 	import RecordCard from './RecordCard.svelte';
 	import { apiFetch } from '../lib/api';
+	import { readBarcodeFromImage, scanBarcodeApi, type ReleaseSearchResult } from '../lib/barcode';
 
 	type ApiItem = {
 		id: string;
@@ -25,13 +26,6 @@
 	let saving = $state(false);
 	let error = $state('');
 	let shareMessage = $state('');
-	type ReleaseSearchResult = {
-		title: string;
-		artist: string;
-		year?: number;
-		label?: string;
-		coverUrl?: string;
-	};
 
 	let form = $state({
 		title: '',
@@ -60,26 +54,13 @@
 		searching = true;
 		error = '';
 		try {
-			const res = await apiFetch(`/api/releases/search?q=${encodeURIComponent(q)}`);
+			const res = await apiFetch(`/api/releases/search?q=${encodeURIComponent(q)}`, { public: true });
 			if (!res.ok) throw new Error(await res.text());
 			releaseResults = await res.json();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to search releases';
 		} finally {
 			searching = false;
-		}
-	}
-
-	async function readBarcodeFromImage(file: File): Promise<string> {
-		const detectorClass = (window as typeof window & { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect(image: ImageBitmap): Promise<Array<{ rawValue: string }>> } }).BarcodeDetector;
-		if (!detectorClass) throw new Error('Barcode scanning is not supported in this browser. Enter the barcode manually.');
-		const detector = new detectorClass({ formats: ['ean_13', 'upc_a', 'upc_e'] });
-		const image = await createImageBitmap(file);
-		try {
-			const codes = await detector.detect(image);
-			return codes[0]?.rawValue ?? '';
-		} finally {
-			image.close();
 		}
 	}
 
@@ -92,13 +73,7 @@
 				error = 'Scan or enter a barcode.';
 				return;
 			}
-			const res = await apiFetch('/api/releases/scan', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ barcode: scannedBarcode }),
-			});
-			if (!res.ok) throw new Error(await res.text());
-			const scan: { barcode: string; results: ReleaseSearchResult[] } = await res.json();
+			const scan = await scanBarcodeApi(scannedBarcode);
 			barcode = scan.barcode;
 			releaseQuery = scan.barcode;
 			releaseResults = scan.results;

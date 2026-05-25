@@ -28,6 +28,7 @@ func main() {
 	_ = godotenv.Load()
 
 	// Initialize Sentry
+	sentryEnabled := false
 	if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
 		err := sentry.Init(sentry.ClientOptions{
 			Dsn:              dsn,
@@ -39,6 +40,7 @@ func main() {
 		if err != nil {
 			log.Printf("Sentry init failed: %v", err)
 		} else {
+			sentryEnabled = true
 			defer sentry.Flush(2 * time.Second)
 			log.Println("Sentry initialized")
 		}
@@ -65,7 +67,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
-	if os.Getenv("SENTRY_DSN") != "" {
+	if sentryEnabled {
 		r.Use(sentryhttp.New(sentryhttp.Options{}).Handle)
 	}
 	r.Use(corsMiddleware)
@@ -85,7 +87,18 @@ func main() {
 				"version": "0.2.0",
 			})
 		})
-		r.Mount("/releases", releases.NewHandler().Routes())
+		r.Mount("/releases", func() chi.Router {
+			discogs := releases.NewDiscogsClient("", os.Getenv("DISCOGS_CONSUMER_KEY"), os.Getenv("DISCOGS_CONSUMER_SECRET"))
+			mb := releases.NewMusicBrainzClient("")
+			searchers := []releases.ReleaseSearcher{}
+			if discogs != nil {
+				searchers = append(searchers, discogs)
+			}
+			searchers = append(searchers, mb)
+			h := releases.NewHandler(searchers...)
+			h.SetDiscogs(discogs)
+			return h.Routes()
+		}())
 
 		// Authenticated routes
 		r.Group(func(r chi.Router) {
