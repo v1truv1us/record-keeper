@@ -7,12 +7,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/joho/godotenv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/getsentry/sentry-go"
+	sentryhttp "github.com/getsentry/sentry-go/http"
 
 	"github.com/v1truv1us/cratekeeper/backend/internal/auth"
 	"github.com/v1truv1us/cratekeeper/backend/internal/collection"
@@ -22,6 +26,23 @@ import (
 
 func main() {
 	_ = godotenv.Load()
+
+	// Initialize Sentry
+	if dsn := os.Getenv("SENTRY_DSN"); dsn != "" {
+		err := sentry.Init(sentry.ClientOptions{
+			Dsn:              dsn,
+			EnableTracing:    true,
+			TracesSampleRate: 0.2,
+			Environment:      os.Getenv("GO_ENV"),
+			Release:          "audiofile@0.2.0",
+		})
+		if err != nil {
+			log.Printf("Sentry init failed: %v", err)
+		} else {
+			defer sentry.Flush(2 * time.Second)
+			log.Println("Sentry initialized")
+		}
+	}
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
@@ -44,6 +65,9 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
+	if os.Getenv("SENTRY_DSN") != "" {
+		r.Use(sentryhttp.New(sentryhttp.Options{}).Handle)
+	}
 	r.Use(corsMiddleware)
 
 	supabaseURL := os.Getenv("SUPABASE_URL")
