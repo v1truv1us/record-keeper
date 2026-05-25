@@ -11,7 +11,8 @@
     "preview": "astro preview",
     "astro": "astro",
     "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui"
+    "test:e2e:ui": "playwright test --ui",
+    "smoke:prod": "node scripts/production-smoke.mjs"
   },
   "dependencies": {
     "@astrojs/svelte": "^8.1.1",
