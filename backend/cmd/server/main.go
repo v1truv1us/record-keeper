@@ -99,6 +99,8 @@ func main() {
 			h.SetDiscogs(discogs)
 			return h.Routes()
 		}())
+		r.Mount("/public/collection", collection.NewHandler(pool).PublicRoutes())
+		r.Mount("/public/wishlist", wishlist.NewHandler(pool).PublicRoutes())
 
 		// Authenticated routes
 		r.Group(func(r chi.Router) {

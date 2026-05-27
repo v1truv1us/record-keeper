@@ -17,7 +17,7 @@ func TestRoutesRegistersCollectionEndpoints(t *testing.T) {
 	}
 	defer mock.Close()
 	mock.ExpectQuery("SELECT ci.id").
-		WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
+		WithArgs(pgxmock.AnyArg(), 50, 0).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "media_condition", "sleeve_condition", "purchase_price", "notes", "is_for_sale", "release_id", "title", "artist", "year", "label", "cover_url"}))
 
 	h := NewHandler(mock)
@@ -53,7 +53,7 @@ func TestCreateRequiresUserTitleAndArtist(t *testing.T) {
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
 	}
-	if !strings.Contains(res.Body.String(), "userId, title, and artist are required") {
+	if !strings.Contains(res.Body.String(), "title and artist are required") {
 		t.Fatalf("expected validation message, got %q", res.Body.String())
 	}
 }
@@ -121,7 +121,7 @@ func TestListReturnsQueryErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer mock.Close()
-	mock.ExpectQuery("SELECT ci.id").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(assertErr("query failed"))
+	mock.ExpectQuery("SELECT ci.id").WithArgs(pgxmock.AnyArg(), 50, 0).WillReturnError(assertErr("query failed"))
 
 	h := NewHandler(mock)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -141,7 +141,7 @@ func TestListReturnsScanErrors(t *testing.T) {
 	}
 	defer mock.Close()
 	mock.ExpectQuery("SELECT ci.id").
-		WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
+		WithArgs(pgxmock.AnyArg(), 50, 0).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "media_condition", "sleeve_condition", "purchase_price", "notes", "is_for_sale", "release_id", "title", "artist", "year", "label", "cover_url"}).
 			AddRow("item-1", "NM", "bad-pointer", "bad-price", nil, false, "release-1", "Kind of Blue", "Miles Davis", nil, "Columbia", nil))
 
@@ -153,6 +153,29 @@ func TestListReturnsScanErrors(t *testing.T) {
 
 	if res.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, res.Code)
+	}
+}
+
+func TestPublicListReturnsCollectionItemsForSharedUser(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+
+	mock.ExpectQuery("SELECT ci.id").
+		WithArgs("user-1", 50, 0).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "media_condition", "sleeve_condition", "purchase_price", "notes", "is_for_sale", "release_id", "title", "artist", "year", "label", "cover_url"}).
+			AddRow("item-1", "NM", nil, nil, nil, false, "release-1", "Kind of Blue", "Miles Davis", nil, "Columbia", nil))
+
+	res := httptest.NewRecorder()
+	NewHandler(mock).PublicRoutes().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/user-1", nil))
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %q", http.StatusOK, res.Code, res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), "Kind of Blue") {
+		t.Fatalf("expected shared collection item, got %q", res.Body.String())
 	}
 }
 
@@ -169,7 +192,7 @@ func TestListReturnsCollectionItems(t *testing.T) {
 	year := 1959
 	coverURL := "https://img.example/cover.jpg"
 	mock.ExpectQuery("SELECT ci.id").
-		WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).
+		WithArgs(pgxmock.AnyArg(), 50, 0).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "media_condition", "sleeve_condition", "purchase_price", "notes", "is_for_sale", "release_id", "title", "artist", "year", "label", "cover_url"}).
 			AddRow("item-1", "NM", &sleeve, &price, &notes, false, "release-1", "Kind of Blue", "Miles Davis", &year, "Columbia", &coverURL))
 
@@ -199,10 +222,10 @@ func TestStatsReturnsCounts(t *testing.T) {
 	}
 	defer mock.Close()
 
-	mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
-	mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery("SELECT SUM").WillReturnRows(pgxmock.NewRows([]string{"sum"}).AddRow(42.0))
-	mock.ExpectQuery("SELECT COUNT").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(3))
+	mock.ExpectQuery("SELECT COUNT").WithArgs(pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery("SELECT COUNT").WithArgs(pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("SELECT SUM").WithArgs(pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows([]string{"sum"}).AddRow(42.0))
+	mock.ExpectQuery("SELECT COUNT").WithArgs(pgxmock.AnyArg()).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(3))
 
 	h := NewHandler(mock)
 	req := httptest.NewRequest(http.MethodGet, "/stats", nil)

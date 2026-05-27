@@ -98,9 +98,11 @@ const authPendingClass = authRequired ? 'auth-pending' : '';
     // Auth guard: redirect to login if not signed in (client-side check)
     const publicPages = ['/login', '/signup', '/login/', '/signup/']
     const currentPath = window.location.pathname
+    const shareParams = new URLSearchParams(window.location.search)
+    const isPublicPage = publicPages.includes(currentPath) || ((currentPath === '/collection' || currentPath === '/wishlist') && shareParams.has('share'))
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session && !publicPages.includes(currentPath)) {
+      if (!session && !isPublicPage) {
         window.location.replace('/login')
         return
       }

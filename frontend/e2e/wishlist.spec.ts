@@ -23,4 +23,30 @@ test.describe('Wishlist page', () => {
 		await page.goto('/wishlist');
 		await expect(page.locator('text=+ Add to Wishlist')).toBeVisible();
 	});
+
+	test('loads a shared wishlist without owner-only controls', async ({ page }) => {
+		await page.route('**/api/public/wishlist/shared-user-1', async (route) => {
+			await route.fulfill({
+				json: [{
+					id: 'wish-1',
+					title: 'Kind of Blue',
+					artist: 'Miles Davis',
+					priority: 2,
+					targetPrice: 20,
+					notes: 'first press',
+					label: 'Columbia',
+				}],
+			});
+		});
+
+		await page.goto('/wishlist?share=shared-user-1');
+
+		await expect(page.locator('text=Shared records to hunt for')).toBeVisible();
+		await expect(page.locator('text=Kind of Blue')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Share' })).toBeHidden();
+		await expect(page.getByRole('button', { name: '+ Add to Wishlist' })).toBeHidden();
+		await expect(page.getByRole('button', { name: 'Edit' })).toBeHidden();
+		await expect(page.getByRole('button', { name: 'Purchased' })).toBeHidden();
+		await expect(page.getByRole('button', { name: 'Remove' })).toBeHidden();
+	});
 });

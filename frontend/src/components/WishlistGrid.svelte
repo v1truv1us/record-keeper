@@ -2,6 +2,7 @@
 	import WishlistRow from './WishlistRow.svelte';
 	import { apiFetch } from '../lib/api';
 	import { type ReleaseSearchResult } from '../lib/barcode';
+	import { supabase } from '../lib/supabase';
 
 	type ApiItem = {
 		id: string;
@@ -20,6 +21,7 @@
 	let saving = $state(false);
 	let error = $state('');
 	let shareMessage = $state('');
+	let isSharedView = $state(false);
 
 	let form = $state({
 		title: '',
@@ -151,8 +153,12 @@
 	}
 
 	async function shareWishlist() {
-		const url = `${window.location.origin}/wishlist`;
 		try {
+			const { data: { session } } = await supabase.auth.getSession();
+			const userID = session?.user?.id;
+			if (!userID) throw new Error('Sign in to share your wishlist.');
+
+			const url = `${window.location.origin}/wishlist?share=${encodeURIComponent(userID)}`;
 			if (navigator.share) {
 				await navigator.share({ title: 'AudioFile Wishlist', text: 'Records I am hunting for on AudioFile', url });
 				return;
@@ -167,9 +173,15 @@
 	async function fetchWishlist() {
 		loading = true;
 		try {
-			const res = await apiFetch('/api/wishlist');
+			const shareID = new URLSearchParams(window.location.search).get('share');
+			isSharedView = Boolean(shareID);
+			const res = shareID
+				? await apiFetch(`/api/public/wishlist/${encodeURIComponent(shareID)}`, { public: true })
+				: await apiFetch('/api/wishlist');
+			if (!res.ok) throw new Error(await res.text());
 			items = await res.json();
 		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to fetch wishlist';
 			console.error('Failed to fetch wishlist', e);
 		} finally {
 			loading = false;
@@ -185,12 +197,14 @@
 	<div class="flex items-end justify-between border-b border-gold-muted/30 pb-6">
 		<div>
 			<h1 class="font-serif text-4xl text-espresso font-normal mb-1">Wishlist</h1>
-			<p class="text-gold-dark text-xs tracking-[0.12em] uppercase">Records you're hunting for</p>
+			<p class="text-gold-dark text-xs tracking-[0.12em] uppercase">{isSharedView ? 'Shared records to hunt for' : "Records you're hunting for"}</p>
 		</div>
-		<div class="flex gap-2">
-			<button type="button" class="border border-espresso/30 text-espresso text-xs tracking-[0.1em] uppercase px-4 py-2 rounded" on:click={shareWishlist}>Share</button>
-			<button type="button" class="bg-espresso text-gold text-xs tracking-[0.1em] uppercase px-4 py-2 rounded" on:click={() => { resetForm(); showAddForm = !showAddForm; }}>+ Add to Wishlist</button>
-		</div>
+		{#if !isSharedView}
+			<div class="flex gap-2">
+				<button type="button" class="border border-espresso/30 text-espresso text-xs tracking-[0.1em] uppercase px-4 py-2 rounded" on:click={shareWishlist}>Share</button>
+				<button type="button" class="bg-espresso text-gold text-xs tracking-[0.1em] uppercase px-4 py-2 rounded" on:click={() => { resetForm(); showAddForm = !showAddForm; }}>+ Add to Wishlist</button>
+			</div>
+		{/if}
 	</div>
 	{#if shareMessage}<p class="text-xs text-gold-dark">{shareMessage}</p>{/if}
 	{#if error && !showAddForm}<p class="text-xs text-red-700">{error}</p>{/if}
@@ -233,7 +247,7 @@
 		<div class="bg-espresso/5 border border-gold-muted/20 rounded-lg p-8 text-center">
 			<div class="font-serif text-espresso text-lg mb-1">Still hunting?</div>
 			<p class="text-gold-dark text-xs tracking-wide mb-4">Add records you're looking for and track your target price.</p>
-			<button type="button" class="bg-espresso text-gold text-xs tracking-[0.1em] uppercase px-5 py-2.5 rounded" on:click={() => showAddForm = true}>+ Add a Record to Hunt</button>
+			{#if !isSharedView}<button type="button" class="bg-espresso text-gold text-xs tracking-[0.1em] uppercase px-5 py-2.5 rounded" on:click={() => showAddForm = true}>+ Add a Record to Hunt</button>{/if}
 		</div>
 	{:else}
 		<div class="space-y-2">
@@ -245,9 +259,9 @@
 					targetPrice={item.targetPrice}
 					notes={item.notes}
 					label={item.label}
-					onEdit={() => editWishlistItem(item)}
-					onRemove={() => removeWishlistItem(item)}
-					onPurchased={() => markPurchased(item)}
+					onEdit={isSharedView ? undefined : () => editWishlistItem(item)}
+					onRemove={isSharedView ? undefined : () => removeWishlistItem(item)}
+					onPurchased={isSharedView ? undefined : () => markPurchased(item)}
 				/>
 			{/each}
 		</div>

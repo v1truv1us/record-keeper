@@ -70,6 +70,12 @@ func (h *Handler) Routes() chi.Router {
 	return r
 }
 
+func (h *Handler) PublicRoutes() chi.Router {
+	r := chi.NewRouter()
+	r.Get("/{userID}", h.publicList)
+	return r
+}
+
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	var req CreateWishlistItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -289,9 +295,20 @@ func (h *Handler) purchase(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"id": itemID})
 }
 
-func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	userID := auth.UserID(r.Context())
+func (h *Handler) publicList(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userID")
+	if userID == "" {
+		http.Error(w, "userID is required", http.StatusBadRequest)
+		return
+	}
+	h.listForUser(w, r, userID)
+}
 
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+	h.listForUser(w, r, auth.UserID(r.Context()))
+}
+
+func (h *Handler) listForUser(w http.ResponseWriter, r *http.Request, userID string) {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	if limit <= 0 {
 		limit = 50

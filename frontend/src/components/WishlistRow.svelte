@@ -6,9 +6,9 @@
 		targetPrice: number | null;
 		notes: string;
 		label: string;
-		onEdit: () => void;
-		onRemove: () => void;
-		onPurchased: () => void;
+		onEdit?: () => void;
+		onRemove?: () => void;
+		onPurchased?: () => void;
 	};
 
 	let { title, artist, priority, targetPrice, notes, label, onEdit, onRemove, onPurchased }: Props = $props();
@@ -49,10 +49,12 @@
 			<div class="text-xs font-medium text-espresso">${targetPrice}</div>
 		{/if}
 		<div class="text-[9px] tracking-[0.1em] uppercase mt-1 {priorityClass}">{priorityLabel} priority</div>
-		<div class="flex justify-end gap-2 mt-2">
-			<button type="button" class="text-[10px] text-gold-dark underline" on:click={onEdit}>Edit</button>
-			<button type="button" class="text-[10px] text-gold-dark underline" on:click={onPurchased}>Purchased</button>
-			<button type="button" class="text-[10px] text-red-700 underline" on:click={onRemove}>Remove</button>
-		</div>
+		{#if onEdit && onPurchased && onRemove}
+			<div class="flex justify-end gap-2 mt-2">
+				<button type="button" class="text-[10px] text-gold-dark underline" on:click={onEdit}>Edit</button>
+				<button type="button" class="text-[10px] text-gold-dark underline" on:click={onPurchased}>Purchased</button>
+				<button type="button" class="text-[10px] text-red-700 underline" on:click={onRemove}>Remove</button>
+			</div>
+		{/if}
 	</div>
 </div>

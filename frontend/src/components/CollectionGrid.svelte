@@ -2,6 +2,7 @@
 	import RecordCard from './RecordCard.svelte';
 	import { apiFetch } from '../lib/api';
 	import { readBarcodeFromImage, scanBarcodeApi, type ReleaseSearchResult } from '../lib/barcode';
+	import { supabase } from '../lib/supabase';
 
 	type ApiItem = {
 		id: string;
@@ -26,6 +27,7 @@
 	let saving = $state(false);
 	let error = $state('');
 	let shareMessage = $state('');
+	let isSharedView = $state(false);
 
 	let form = $state({
 		title: '',
@@ -129,8 +131,12 @@
 	}
 
 	async function shareCollection() {
-		const url = `${window.location.origin}/collection`;
 		try {
+			const { data: { session } } = await supabase.auth.getSession();
+			const userID = session?.user?.id;
+			if (!userID) throw new Error('Sign in to share your collection.');
+
+			const url = `${window.location.origin}/collection?share=${encodeURIComponent(userID)}`;
 			if (navigator.share) {
 				await navigator.share({ title: 'AudioFile Collection', text: 'My vinyl collection on AudioFile', url });
 				return;
@@ -145,10 +151,16 @@
 	async function fetchCollection() {
 		loading = true;
 		try {
+			const shareID = new URLSearchParams(window.location.search).get('share');
+			isSharedView = Boolean(shareID);
 			const sortParam = sort === 'artist' ? 'artist' : sort === 'year' ? 'year' : sort === 'condition' ? 'condition' : '';
-			const res = await apiFetch(`/api/collection?sort=${sortParam}`);
+			const res = shareID
+				? await apiFetch(`/api/public/collection/${encodeURIComponent(shareID)}?sort=${sortParam}`, { public: true })
+				: await apiFetch(`/api/collection?sort=${sortParam}`);
+			if (!res.ok) throw new Error(await res.text());
 			items = await res.json();
 		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to fetch collection';
 			console.error('Failed to fetch collection', e);
 		} finally {
 			loading = false;
@@ -156,7 +168,8 @@
 	}
 
 	$effect(() => {
-		if (new URLSearchParams(window.location.search).get('add') === '1') {
+		const params = new URLSearchParams(window.location.search);
+		if (params.get('add') === '1' && !params.has('share')) {
 			showAddForm = true;
 		}
 	});
@@ -171,7 +184,7 @@
 	<div class="flex flex-col gap-4 border-b border-gold-muted/30 pb-6 sm:flex-row sm:items-end sm:justify-between">
 		<div>
 			<h1 class="font-serif text-4xl text-espresso font-normal mb-1">Collection</h1>
-			<p class="text-gold-dark text-xs tracking-[0.12em] uppercase">{items.length} records · sorted by {sort === 'recent' ? 'recently added' : sort}</p>
+			<p class="text-gold-dark text-xs tracking-[0.12em] uppercase">{isSharedView ? 'Shared collection' : `${items.length} records · sorted by ${sort === 'recent' ? 'recently added' : sort}`}</p>
 		</div>
 		<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
 			<select
@@ -183,13 +196,16 @@
 				<option value="year">Year</option>
 				<option value="condition">Condition</option>
 			</select>
-			<button type="button" class="border border-espresso/30 text-espresso text-xs tracking-[0.1em] uppercase px-4 py-2 rounded" on:click={shareCollection}>Share</button>
-			<button type="button" class="bg-espresso text-gold text-xs tracking-[0.1em] uppercase px-4 py-2 rounded" on:click={() => showAddForm = !showAddForm}>+ Add Record</button>
+			{#if !isSharedView}
+				<button type="button" class="border border-espresso/30 text-espresso text-xs tracking-[0.1em] uppercase px-4 py-2 rounded" on:click={shareCollection}>Share</button>
+				<button type="button" class="bg-espresso text-gold text-xs tracking-[0.1em] uppercase px-4 py-2 rounded" on:click={() => showAddForm = !showAddForm}>+ Add Record</button>
+			{/if}
 		</div>
 	</div>
 	{#if shareMessage}<p class="text-xs text-gold-dark">{shareMessage}</p>{/if}
+	{#if error && !showAddForm}<p class="text-xs text-red-700">{error}</p>{/if}
 
-	{#if showAddForm}
+	{#if showAddForm && !isSharedView}
 		<div class="bg-white border border-gold/50 rounded-lg p-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
 			<div class="sm:col-span-2">
 				<label class="text-xs text-gold-dark uppercase tracking-wide">Scan barcode photo<input type="file" accept="image/*" capture="environment" class="mt-1 w-full border border-gold/40 rounded px-3 py-2 text-espresso normal-case" on:change={(e) => barcodeImage = e.currentTarget.files?.[0] ?? null} /></label>
@@ -245,7 +261,7 @@
 					coverUrl={item.release.coverUrl}
 					purchasePrice={item.purchasePrice}
 					notes={item.notes}
-					onChanged={fetchCollection}
+					onChanged={isSharedView ? undefined : fetchCollection}
 				/>
 			{/each}
 		</div>

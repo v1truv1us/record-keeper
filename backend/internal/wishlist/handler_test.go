@@ -33,7 +33,7 @@ func TestCreateRequiresUserTitleAndArtist(t *testing.T) {
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
 	}
-	if !strings.Contains(res.Body.String(), "userId, title, and artist are required") {
+	if !strings.Contains(res.Body.String(), "title and artist are required") {
 		t.Fatalf("expected validation message, got %q", res.Body.String())
 	}
 }
@@ -98,7 +98,7 @@ func TestUpdateRequiresIDUserTitleAndArtist(t *testing.T) {
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
 	}
-	if !strings.Contains(res.Body.String(), "id, userId, title, and artist are required") {
+	if !strings.Contains(res.Body.String(), "id, title, and artist are required") {
 		t.Fatalf("expected validation message, got %q", res.Body.String())
 	}
 }
@@ -192,6 +192,29 @@ func TestListReturnsQueryErrors(t *testing.T) {
 	}
 }
 
+func TestPublicListReturnsWishlistItemsForSharedUser(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mock.Close()
+
+	mock.ExpectQuery("SELECT w.id").
+		WithArgs("user-1", 50).
+		WillReturnRows(pgxmock.NewRows([]string{"id", "priority", "target_price", "pressing_notes", "title", "artist", "label"}).
+			AddRow("wish-1", 2, nil, nil, "Kind of Blue", "Miles Davis", "Columbia"))
+
+	res := httptest.NewRecorder()
+	NewHandler(mock).PublicRoutes().ServeHTTP(res, httptest.NewRequest(http.MethodGet, "/user-1", nil))
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %q", http.StatusOK, res.Code, res.Body.String())
+	}
+	if !strings.Contains(res.Body.String(), "Kind of Blue") {
+		t.Fatalf("expected shared wishlist item, got %q", res.Body.String())
+	}
+}
+
 func TestListReturnsWishlistItems(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
@@ -202,7 +225,7 @@ func TestListReturnsWishlistItems(t *testing.T) {
 	price := 20.0
 	notes := "first press"
 	mock.ExpectQuery("SELECT w.id").
-		WithArgs(pgxmock.AnyArg()).
+		WithArgs(pgxmock.AnyArg(), 50).
 		WillReturnRows(pgxmock.NewRows([]string{"id", "priority", "target_price", "pressing_notes", "title", "artist", "label"}).
 			AddRow("wish-1", 2, &price, &notes, "Kind of Blue", "Miles Davis", "Columbia"))
 
@@ -222,9 +245,9 @@ func TestListReturnsWishlistItems(t *testing.T) {
 	}
 }
 
-func TestDeleteRequiresUserID(t *testing.T) {
+func TestDeleteRequiresID(t *testing.T) {
 	h := NewHandler(nil)
-	req := httptest.NewRequest(http.MethodDelete, "/abc", nil)
+	req := httptest.NewRequest(http.MethodDelete, "/", nil)
 	res := httptest.NewRecorder()
 
 	h.delete(res, req)
@@ -232,7 +255,7 @@ func TestDeleteRequiresUserID(t *testing.T) {
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
 	}
-	if !strings.Contains(res.Body.String(), "id and userId are required") {
+	if !strings.Contains(res.Body.String(), "id is required") {
 		t.Fatalf("expected validation message, got %q", res.Body.String())
 	}
 }
@@ -491,9 +514,9 @@ func TestPurchaseRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
-func TestPurchaseRequiresUserID(t *testing.T) {
+func TestPurchaseRequiresID(t *testing.T) {
 	h := NewHandler(nil)
-	req := httptest.NewRequest(http.MethodPost, "/abc/purchase", strings.NewReader(`{}`))
+	req := httptest.NewRequest(http.MethodPost, "/purchase", strings.NewReader(`{}`))
 	res := httptest.NewRecorder()
 
 	h.purchase(res, req)
@@ -501,7 +524,7 @@ func TestPurchaseRequiresUserID(t *testing.T) {
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.Code)
 	}
-	if !strings.Contains(res.Body.String(), "id and userId are required") {
+	if !strings.Contains(res.Body.String(), "id is required") {
 		t.Fatalf("expected validation message, got %q", res.Body.String())
 	}
 }

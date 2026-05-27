@@ -127,10 +127,12 @@
 				<span class="text-[10px] bg-espresso text-gold px-2 py-0.5 rounded tracking-wide">{grade}</span>
 				<span class="text-[10px] text-gold-muted">{year ?? ''} · {pressing}</span>
 			</div>
-			<div class="flex gap-2">
-				<button type="button" class="text-[10px] text-gold-dark hover:text-espresso transition-colors" onclick={() => { editForm.mediaCondition = grade; editForm.sleeveCondition = sleeveGrade; editForm.purchasePrice = purchasePrice ? String(purchasePrice) : ''; editForm.notes = notes; editing = true; }}>Edit</button>
-				<button type="button" class="text-[10px] text-red-600/60 hover:text-red-700 transition-colors" onclick={deleteItem} disabled={deleting}>{deleting ? 'Removing...' : 'Remove'}</button>
-			</div>
+			{#if onChanged}
+				<div class="flex gap-2">
+					<button type="button" class="text-[10px] text-gold-dark hover:text-espresso transition-colors" onclick={() => { editForm.mediaCondition = grade; editForm.sleeveCondition = sleeveGrade; editForm.purchasePrice = purchasePrice ? String(purchasePrice) : ''; editForm.notes = notes; editing = true; }}>Edit</button>
+					<button type="button" class="text-[10px] text-red-600/60 hover:text-red-700 transition-colors" onclick={deleteItem} disabled={deleting}>{deleting ? 'Removing...' : 'Remove'}</button>
+				</div>
+			{/if}
 		{:else}
 			<div class="space-y-2 mt-1">
 				<label class="block text-[10px] text-gold-dark uppercase tracking-wide">Media
