@@ -94,19 +94,18 @@ const authPendingClass = authRequired ? 'auth-pending' : '';
 
   <script>
     import { supabase } from '../lib/supabase'
+    import { isPublicPage, normalizePath } from '../lib/auth-guard'
 
     // Auth guard: redirect to login if not signed in (client-side check)
-    const publicPages = ['/login', '/signup', '/login/', '/signup/']
-    const currentPath = window.location.pathname
-    const shareParams = new URLSearchParams(window.location.search)
-    const isPublicPage = publicPages.includes(currentPath) || ((currentPath === '/collection' || currentPath === '/wishlist') && shareParams.has('share'))
+    const currentPath = normalizePath(window.location.pathname)
+    const publicAuthPages = ['/login', '/signup']
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session && !isPublicPage) {
+      if (!session && !isPublicPage()) {
         window.location.replace('/login')
         return
       }
-      if (session && publicPages.includes(currentPath)) {
+      if (session && publicAuthPages.includes(currentPath)) {
         window.location.replace('/')
         return
       }
@@ -132,7 +131,7 @@ const authPendingClass = authRequired ? 'auth-pending' : '';
 
     // Listen for auth state changes (e.g. session expiry)
     supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT' && !isPublicPage()) {
         window.location.href = '/login'
       }
     })

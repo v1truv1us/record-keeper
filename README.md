@@ -81,6 +81,33 @@ cratekeeper/
     └── adr/               # Architecture Decision Records
 ```
 
+## Deployment
+
+Production runs on [Coolify](https://coolify.fergify.work) (`audiofile` app, `main` branch).
+
+### Automatic deploy (GitHub Actions)
+
+Pushes to `main` run `.github/workflows/deploy.yml`, which calls the Coolify deploy API.
+
+Repository secrets (Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|--------|--------|
+| `COOLIFY_BASE_URL` | `https://coolify.fergify.work` |
+| `COOLIFY_API_TOKEN` | API token from Coolify → Keys & Tokens |
+| `COOLIFY_APP_UUID` | `a7enf427mqokx7il22uibvmo` |
+
+You can also deploy manually from the Coolify UI or locally:
+
+```bash
+export COOLIFY_API_TOKEN=your-token
+./scripts/deploy-coolify.sh
+```
+
+### Optional: GitHub → Coolify webhook
+
+In the Coolify app → Webhook tab, copy the **GitHub** manual webhook URL and add it under the repo’s GitHub **Settings → Webhooks** (push events, `application/json`). This deploys without Actions if you prefer webhooks only.
+
 ## Post-Deploy Smoke Tests
 
 AudioFile uses an automated post-deploy smoke test pipeline:

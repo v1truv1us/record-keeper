@@ -1,3 +1,5 @@
+import { isPublicShareView } from './auth-guard';
+
 // Shared API configuration — reads from window at runtime so builds work anywhere.
 const API_BASE: string =
 	typeof window !== "undefined"
@@ -33,7 +35,7 @@ export async function apiFetch(path: string, init: ApiFetchOptions = {}): Promis
 
 		const res = await fetch(apiUrl(path), { ...init, headers });
 
-		if (res.status === 401) {
+		if (res.status === 401 && !isPublicShareView()) {
 			window.location.replace('/login');
 			throw new Error('Session expired');
 		}

@@ -1,0 +1,30 @@
+name: Deploy to Coolify
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Coolify deployment
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${COOLIFY_BASE_URL:-}" ] || [ -z "${COOLIFY_API_TOKEN:-}" ] || [ -z "${COOLIFY_APP_UUID:-}" ]; then
+            echo "Missing COOLIFY_BASE_URL, COOLIFY_API_TOKEN, or COOLIFY_APP_UUID repository secrets."
+            exit 1
+          fi
+          curl -fsS -X POST \
+            -H "Authorization: Bearer ${COOLIFY_API_TOKEN}" \
+            -H "Accept: application/json" \
+            "${COOLIFY_BASE_URL%/}/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=false"

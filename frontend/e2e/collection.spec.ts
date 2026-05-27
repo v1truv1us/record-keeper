@@ -110,6 +110,7 @@ test.describe('Collection page', () => {
 		});
 
 		await page.goto('/collection?share=shared-user-1');
+		await expect(page).not.toHaveURL(/\/login/);
 
 		await expect(page.locator('text=Shared collection')).toBeVisible();
 		await expect(page.locator('text=Kind of Blue')).toBeVisible();
@@ -117,5 +118,32 @@ test.describe('Collection page', () => {
 		await expect(page.getByRole('button', { name: '+ Add Record' })).toBeHidden();
 		await expect(page.getByRole('button', { name: 'Edit' })).toBeHidden();
 		await expect(page.getByRole('button', { name: 'Remove' })).toBeHidden();
+	});
+
+	test('loads a shared collection when the path has a trailing slash', async ({ page }) => {
+		await page.route('**/api/public/collection/shared-user-1?sort=', async (route) => {
+			await route.fulfill({
+				json: [{
+					id: 'item-1',
+					release: {
+						id: 'release-1',
+						title: 'Kind of Blue',
+						artist: 'Miles Davis',
+						year: 1959,
+						label: 'Columbia',
+					},
+					mediaCondition: 'NM',
+					sleeveCondition: 'VG+',
+					purchasePrice: 25.5,
+					notes: 'clean',
+					isForSale: false,
+				}],
+			});
+		});
+
+		await page.goto('/collection/?share=shared-user-1');
+		await expect(page).not.toHaveURL(/\/login/);
+		await expect(page.locator('text=Shared collection')).toBeVisible();
+		await expect(page.locator('text=Kind of Blue')).toBeVisible();
 	});
 });
